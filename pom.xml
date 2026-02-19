@@ -102,6 +102,10 @@
             <type>pom</type>
             <scope>import</scope>
         </dependency>
+        <dependency>
+            <groupId>org.mongodb</groupId>
+            <artifactId>mongodb-driver-kotlin-sync</artifactId>
+        </dependency>
     </dependencies>
 
 
