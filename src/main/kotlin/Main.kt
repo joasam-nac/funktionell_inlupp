@@ -1,6 +1,7 @@
 package org.example
 
 import Movie
+import com.mongodb.client.model.Filters.eq
 import com.mongodb.kotlin.client.MongoClient
 import org.bson.Document
 import kotlin.collections.orEmpty
@@ -8,23 +9,25 @@ import kotlin.collections.orEmpty
 // mongodb+srv://dev:<db_password>@cluster0.xudciah.mongodb.net/?appName=Cluster0
 fun main() {
     val uri = System.getenv("MONGODB_URI")
+    val chosenYear = 1975
     val movies: List<Movie> =
         try {
-            getMovies(uri)
+            getMovies(uri, chosenYear)
         } catch (e: Exception) {
             println("MongoDB error: ${e.message}")
             e.printStackTrace()
             return
         }
 
-    val chosenYear = 1975
 
-    println("Antal filmer från $chosenYear: ${movies.count { it.year == chosenYear }}")
+    //movies = movies.filter{ it.year == chosenYear }
+
+    println("Antal filmer från $chosenYear: ${movies.count()}")
 
     val longestMovie = movies.maxByOrNull { it.runtime}
     println("Längsta film ${longestMovie?.title} med tid: ${longestMovie?.runtime}")
 
-    println("Unika genrer från filmer $chosenYear: ${countUnqueGenres(movies.filter{it.year == chosenYear})}")
+    println("Unika genrer från filmer $chosenYear: ${countUnqueGenres(movies)}")
 
     val topActors = getActorsFromTopRatedMovie(movies)
     println(topActors)
@@ -43,12 +46,12 @@ fun main() {
 }
 
 
-fun getMovies(uri: String): List<Movie> =
+fun getMovies(uri: String, year: Int): List<Movie> =
     MongoClient.create(uri).use { client ->
         client
             .getDatabase("sample_mflix")
             .getCollection<Document>("movies")
-            .find()
+            .find(eq("year", year)) // gör hämtning mindre
             .toList()
             .asSequence()
             .mapNotNull { document -> runCatching { Movie.fromDocument(document) }.getOrNull() }
