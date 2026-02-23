@@ -36,7 +36,7 @@ fun main() {
     println("Skådespelare i flest filmer: $actorInMostMovies")
 
     val uniqeLanguages = getUniqueLanguages(movies)
-    println("Antal unika språk: ${uniqeLanguages.count()}")
+    println("Antal unika språk: ${uniqeLanguages.count()}, ${uniqeLanguages.sorted()}")
 
     val anyUniqueTitles = hasSameNamedTitles(movies)
     println(anyUniqueTitles)
@@ -86,14 +86,13 @@ fun getActorInMostMovies(movies: List<Movie>): String? =
             .eachCount()
             .maxByOrNull { it.value }?.key
 
-fun getUniqueLanguages(movies: List<Movie>): List<String> =
+fun getUniqueLanguages(movies: List<Movie>): Set<String> =
     movies
         .asSequence() //rek från ide
         .flatMap { it.languages.orEmpty() }
             .map { it.trim() }
             .filter { it.isNotEmpty() }
             .toSet()
-            .toList()
 
 fun hasSameNamedTitles(movies: List<Movie>): Boolean =
     movies
