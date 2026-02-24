@@ -26,6 +26,7 @@ fun main() {
                         emptyList()
                     }
     }
+    println("================================inlämningsuppgift")
 
     println("Antal filmer från $chosenYear: ${movies.size}")
 
