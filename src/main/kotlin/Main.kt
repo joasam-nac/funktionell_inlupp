@@ -1,28 +1,33 @@
 package org.example
 
 import Movie
-import com.mongodb.client.model.Filters.eq
+import com.mongodb.MongoException
 import com.mongodb.kotlin.client.MongoClient
-import org.bson.Document
 import kotlin.collections.orEmpty
 
 // mongodb+srv://dev:<db_password>@cluster0.xudciah.mongodb.net/?appName=Cluster0
 fun main() {
-    val uri = System.getenv("MONGODB_URI")
+    val uri = System.getenv("MONGODB_URI") ?: run {
+        println("kom ihåg att lägga in env MONGODB_URI")
+        return
+    }
     val chosenYear = 1975
+
     val movies: List<Movie> =
-        try {
-            getMovies(uri, chosenYear)
-        } catch (e: Exception) {
-            println("MongoDB error: ${e.message}")
-            e.printStackTrace()
-            return
-        }
+        MongoClient
+            .create(uri)
+            .use { client ->
+                val rep = MovieRepository(client)
+                    try {
+                        rep.getMovies(chosenYear)
+                    } catch (e: MongoException) {
+                        println("Database error: ${e.message}")
+                        e.printStackTrace()
+                        emptyList()
+                    }
+    }
 
-
-    //movies = movies.filter{ it.year == chosenYear }
-
-    println("Antal filmer från $chosenYear: ${movies.count()}")
+    println("Antal filmer från $chosenYear: ${movies.size}")
 
     val longestMovie = movies.maxByOrNull { it.runtime}
     println("Längsta film ${longestMovie?.title} med tid: ${longestMovie?.runtime}")
@@ -30,7 +35,7 @@ fun main() {
     println("Unika genrer från filmer $chosenYear: ${countUnqueGenres(movies)}")
 
     val topActors = getActorsFromTopRatedMovie(movies)
-    println(topActors)
+    println("Skådespelare i bästa filmen: $topActors")
 
     val leastActorsMovie = getMovieWithFewestActors(movies)
     println("Minst antal skådisar: ${leastActorsMovie?.title}")
@@ -39,39 +44,26 @@ fun main() {
     println("Skådespelare i flest filmer: $actorInMostMovies")
 
     val uniqeLanguages = getUniqueLanguages(movies)
-    println("Antal unika språk: ${uniqeLanguages.count()}, ${uniqeLanguages.sorted()}")
+    println("Antal unika språk: ${uniqeLanguages.size}, ${uniqeLanguages.sorted()}")
 
     val anyUniqueTitles = hasSameNamedTitles(movies)
-    println(anyUniqueTitles)
+    println("Finns filmer med samma titlar: $anyUniqueTitles")
 }
 
-
-fun getMovies(uri: String, year: Int): List<Movie> =
-    MongoClient.create(uri).use { client ->
-        client
-            .getDatabase("sample_mflix")
-            .getCollection<Document>("movies")
-            .find(eq("year", year)) // gör hämtning mindre
-            .toList()
-            .asSequence()
-            .mapNotNull { document -> runCatching { Movie.fromDocument(document) }.getOrNull() }
-            .toList()
-    }
-
-
+fun List<Movie>.flatMapFilterEmpty(movie: (Movie) -> List<String>?): Sequence<String> =
+    asSequence()
+    .flatMap { movie(it).orEmpty() }
+    .map { it.trim()}
+    .filter{it.isNotEmpty()}
 
 fun getMovieWithFewestActors(movies: List<Movie>): Movie? {
     return movies
-        .minByOrNull { it.cast.orEmpty().size }
-                        //{ it.cast?.size ?: 0 }
+        .minByOrNull { it.cast.size }
+                    //{ it.cast?.size ?: 0 }
 }
 
 fun countUnqueGenres(movies: List<Movie>): Int =
-    movies
-        .asSequence() //rek från ide
-        .flatMap { it.genres.orEmpty() }
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
+    movies.flatMapFilterEmpty{it.genres}
             .toSet()
             .size
 
@@ -81,24 +73,18 @@ fun getActorsFromTopRatedMovie(movies: List<Movie>): List<String> =
 
 fun getActorInMostMovies(movies: List<Movie>): String? =
     movies
-        .asSequence() // rek från ide
-        .flatMap{it.cast.orEmpty() } //List<String>
-            .map{it.trim()}
-            .filter{it.isNotEmpty()}
+        .flatMapFilterEmpty{it.cast}
             .groupingBy { it } //~~hashmap
             .eachCount()
             .maxByOrNull { it.value }?.key
 
 fun getUniqueLanguages(movies: List<Movie>): Set<String> =
     movies
-        .asSequence() //rek från ide
-        .flatMap { it.languages.orEmpty() }
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
+        .flatMapFilterEmpty { it.languages }
             .toSet()
 
 fun hasSameNamedTitles(movies: List<Movie>): Boolean =
     movies
-        .mapNotNull { it.title?.trim()?.lowercase() } //List<String>
+        .map { it.title.trim().lowercase() } //List<String>
         .filter { it.isNotEmpty() }
-        .run { size != toSet().size } //set har endast unika
+        .let { it.size != it.distinct().size }
